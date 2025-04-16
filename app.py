@@ -1,171 +1,163 @@
 import streamlit as st
-import plotly.express as px
-import plotly.graph_objects as go
-import pandas as pd
+import data
+import visualization
 
 # Set page configuration
-st.set_page_config(page_title="PIMA Diabetes Insights", layout="wide")
+st.set_page_config(page_title="Glucose Guardian Live Demo", layout="wide")
 
-# Load data
-df = pd.read_csv("pima-dataset.csv")
+# Initialize database
+data.init_db()
 
-# --- Table: PIMA Dataset Structure ---
-num_columns = len(df.columns)
-num_rows = len(df)
-stats = df.describe().transpose()
-columns = df.columns
-data_types = [str(df[col].dtype) for col in columns]
-unique_counts = [df[col].nunique() for col in columns]
-means = [f"{stats.loc[col, 'mean']:.2f}" for col in columns]
-mins = [f"{stats.loc[col, 'min']:.2f}" for col in columns]
-maxs = [f"{stats.loc[col, 'max']:.2f}" for col in columns]
-fig_table = go.Figure(data=[go.Table(
-    header=dict(
-        values=['Column Name', 'Data Type', 'Unique Values', 'Mean', 'Min', 'Max'],
-        fill_color='paleturquoise',
-        align='left',
-        font=dict(color='black', size=12)  # Set header text to black
-    ),
-    cells=dict(
-        values=[columns, data_types, unique_counts, means, mins, maxs],
-        fill_color='lavender',
-        align='left',
-        font=dict(color='black', size=12)  # Set cell text to black
-    ))
-])
-fig_table.update_layout(
-    title=f'PIMA Dataset Structure (Rows: {num_rows}, Columns: {num_columns})',
-    width=800, height=400
-)
+# Load and clean data
+df = data.load_data()
+df = data.clean_data(df)
 
-# --- Bar Chart: Average Insulin by Outcome ---
-df_clean = df[df['Insulin'] > 0]
-insulin_means = df_clean.groupby('Outcome')['Insulin'].mean().reset_index()
-insulin_means['Outcome'] = insulin_means['Outcome'].map({0: 'Non-Diabetic', 1: 'Diabetic'})
-fig_bar = px.bar(insulin_means, x='Outcome', y='Insulin',
-                 title='Average Insulin by Diabetes Outcome',
-                 labels={'Insulin': 'Avg Insulin (mu U/ml)'},
-                 height=500, width=500)
-fig_bar.update_traces(marker_color='teal', text=insulin_means['Insulin'].round(1), textposition='auto')
+# st.header("Manage Patient Records")
 
-# --- Heatmap: Correlation Matrix ---
-corr = df.corr()
-fig_heatmap = go.Figure(data=go.Heatmap(
-    z=corr.values.tolist(),
-    x=corr.columns.tolist(),
-    y=corr.columns.tolist(),
-    text=[[f"{val:.2f}" for val in row] for row in corr.values],
-    texttemplate="%{text}",
-    colorscale='Viridis',
-    zmin=-1, zmax=1))
-fig_heatmap.update_layout(title='Correlation Heatmap of PIMA Features')
+# # Add Record
+# st.subheader("Add New Record")
+# with st.form("add_patient"):
+#     pregnancies = st.number_input("Pregnancies", min_value=0, max_value=17, step=1)
+#     glucose = st.number_input("Glucose", min_value=0, max_value=200, step=1)
+#     blood_pressure = st.number_input("BloodPressure", min_value=0, max_value=122, step=1)
+#     skin_thickness = st.number_input("SkinThickness", min_value=0, max_value=99, step=1)
+#     insulin = st.number_input("Insulin", min_value=0, max_value=846, step=1)
+#     bmi = st.number_input("BMI", min_value=0.0, max_value=67.1, step=0.1)
+#     dpf = st.number_input("DiabetesPedigreeFunction", min_value=0.0, max_value=2.42, step=0.01)
+#     age = st.number_input("Age", min_value=21, max_value=81, step=1)
+#     outcome = st.selectbox("Outcome", [0, 1])
+#     submitted = st.form_submit_button("Add Record")
+#     if submitted:
+#         record = {
+#             "Pregnancies": pregnancies,
+#             "Glucose": glucose,
+#             "BloodPressure": blood_pressure,
+#             "SkinThickness": skin_thickness,
+#             "Insulin": insulin,
+#             "BMI": bmi,
+#             "DiabetesPedigreeFunction": dpf,
+#             "Age": age,
+#             "Outcome": outcome
+#         }
+#         if data.add_record(record):
+#             st.success("Record added successfully!")
+#             last_record = data.get_last_record()
+#             if last_record is not None:
+#                 st.subheader("Last Added Record")
+#                 st.dataframe(last_record, hide_index=True)
+#         # Reload data to reflect changes
+#         st.session_state.df = data.load_data()
+#         st.session_state.df = data.clean_data(st.session_state.df)
 
-# --- 3D Scatter: Glucose, BMI, Age by Outcome ---
-df['Outcome_Color'] = df['Outcome'].map({0: 'red', 1: 'blue'})
-fig_3d = px.scatter_3d(df, x='Glucose', y='BMI', z='Age',
-                       color='Outcome_Color',
-                       hover_data=['Pregnancies'], opacity=0.7,
-                       title='3D View: Glucose, BMI, Age by Outcome',
-                       color_discrete_map={'red': 'red', 'blue': 'blue'},
-                       labels={'Outcome_Color': 'Diabetes (0 = No, 1 = Yes)'},
-                       height=800, width=800)
-fig_3d.update_traces(marker=dict(size=12, symbol='circle'))
-fig_3d.update_layout(scene=dict(aspectmode='data'))
+# # Update Record
+# st.subheader("Update Existing Record")
+# with st.form("update_patient"):
+#     record_id = st.number_input("Record ID (rowid)", min_value=1, step=1)
+#     update_glucose = st.number_input("New Glucose", min_value=0, max_value=200, step=1, key="update_glucose")
+#     update_bmi = st.number_input("New BMI", min_value=0.0, max_value=67.1, step=0.1, key="update_bmi")
+#     submitted = st.form_submit_button("Update Record")
+#     if submitted:
+#         update_data = {"Glucose": update_glucose, "BMI": update_bmi}
+#         if data.update_record(record_id, update_data):
+#             st.success(f"Record {record_id} updated successfully!")
+#         # Reload data
+#         st.session_state.df = data.load_data()
+#         st.session_state.df = data.clean_data(st.session_state.df)
 
+# # Delete Record
+# st.subheader("Delete Record")
+# with st.form("delete_patient"):
+#     delete_id = st.number_input("Record ID (rowid) to Delete", min_value=1, step=1)
+#     submitted = st.form_submit_button("Delete Record")
+#     if submitted:
+#         if data.delete_record(delete_id):
+#             st.success(f"Record {delete_id} deleted successfully!")
+#         # Reload data
+#         st.session_state.df = data.load_data()
+#         st.session_state.df = data.clean_data(st.session_state.df)
 
-# --- NEW Interactive Scatter + Histogram ---
-scatter_data = df[['Glucose', 'BMI', 'Outcome', 'Age']]
-age_20_30 = scatter_data[scatter_data['Age'].between(20, 30)]
-age_30_40 = scatter_data[scatter_data['Age'].between(30, 40)]
-age_40_plus = scatter_data[scatter_data['Age'] >= 40]
-
-fig_interactive = go.Figure()
-
-# Scatter traces for each age range
-fig_interactive.add_trace(go.Scatter(
-    x=scatter_data['Glucose'], y=scatter_data['BMI'], mode='markers',
-    marker=dict(color=scatter_data['Outcome'], colorscale='Tealrose'),
-    name='All Ages', hovertemplate='Glucose: %{x}<br>BMI: %{y}<br>Age: %{customdata}',
-    customdata=scatter_data['Age'], visible=True))
-fig_interactive.add_trace(go.Scatter(
-    x=age_20_30['Glucose'], y=age_20_30['BMI'], mode='markers',
-    marker=dict(color=age_20_30['Outcome'], colorscale='Tealrose'),
-    name='Age 20-30', hovertemplate='Glucose: %{x}<br>BMI: %{y}<br>Age: %{customdata}',
-    customdata=age_20_30['Age'], visible=False))
-fig_interactive.add_trace(go.Scatter(
-    x=age_30_40['Glucose'], y=age_30_40['BMI'], mode='markers',
-    marker=dict(color=age_30_40['Outcome'], colorscale='Tealrose'),
-    name='Age 30-40', hovertemplate='Glucose: %{x}<br>BMI: %{y}<br>Age: %{customdata}',
-    customdata=age_30_40['Age'], visible=False))
-fig_interactive.add_trace(go.Scatter(
-    x=age_40_plus['Glucose'], y=age_40_plus['BMI'], mode='markers',
-    marker=dict(color=age_40_plus['Outcome'], colorscale='Tealrose'),
-    name='Age 40+', hovertemplate='Glucose: %{x}<br>BMI: %{y}<br>Age: %{customdata}',
-    customdata=age_40_plus['Age'], visible=False))
-
-# Histogram: Age distribution
-fig_interactive.add_trace(go.Histogram(
-    x=df[df['Outcome'] == 1]['Age'], name='Diabetic Age', opacity=0.7,
-    histnorm='percent', visible=False))
-fig_interactive.add_trace(go.Histogram(
-    x=df[df['Outcome'] == 0]['Age'], name='Non-Diabetic Age', opacity=0.7,
-    histnorm='percent', visible=False))
-
-# Age filter buttons
-age_buttons = [
-    dict(label='All Ages', method='update',
-         args=[{'visible': [True, False, False, False, False, False]},
-               {'title': 'All Ages: Glucose vs. BMI'}]),
-    dict(label='Age 20-30', method='update',
-         args=[{'visible': [False, True, False, False, False, False]},
-               {'title': 'Age 20-30: Glucose vs. BMI'}]),
-    dict(label='Age 30-40', method='update',
-         args=[{'visible': [False, False, True, False, False, False]},
-               {'title': 'Age 30-40: Glucose vs. BMI'}]),
-    dict(label='Age 40+', method='update',
-         args=[{'visible': [False, False, False, True, False, False]},
-               {'title': 'Age 40+: Glucose vs. BMI'}]),
-    dict(label='Age Distribution', method='update',
-         args=[{'visible': [False, False, False, False, True, True]},
-               {'title': 'Age Distribution by Outcome'}])
-]
-
-# Update layout for interactive figure
-fig_interactive.update_layout(
-    updatemenus=[dict(active=0, buttons=age_buttons, x=1.2, y=1.1)],
-    title='All Ages: Glucose vs. BMI',
-    height=600, width=800,
-    showlegend=True,
-    barmode='overlay'
-)
+# # Display Current Data (Optional, for verification)
+# st.subheader("Current Records")
+# if "df" in st.session_state and st.session_state.df is not None:
+#     st.dataframe(st.session_state.df.head())
+# else:
+#     df = data.load_data()
+#     df = data.clean_data(df)
+#     st.session_state.df = df
+#     st.dataframe(df.head() if df is not None else [])
 
 # --- Streamlit Layout ---
-st.title("Live Demo: PIMA Diabetes Insights")
+st.title("Glucose Guardian Live Demo")
 
+# Dataset Structure
 st.header("Dataset Structure")
-st.plotly_chart(fig_table, use_container_width=True)
+fig_table = visualization.create_dataset_table(df)
+if fig_table:
+    st.plotly_chart(fig_table, use_container_width=True)
+else:
+    st.error("Failed to load dataset table.")
 
+# Average Insulin by Outcome
 st.header("Average Insulin by Outcome")
-st.plotly_chart(fig_bar, use_container_width=True)
+fig_bar = visualization.create_insulin_bar(df)
+if fig_bar:
+    st.plotly_chart(fig_bar, use_container_width=True)
+else:
+    st.error("Failed to load insulin bar chart.")
 
+# Correlation Heatmap
 st.header("Correlation Heatmap")
-st.plotly_chart(fig_heatmap, use_container_width=True)
+fig_heatmap = visualization.create_correlation_heatmap(df)
+if fig_heatmap:
+    st.plotly_chart(fig_heatmap, use_container_width=True)
+else:
+    st.error("Failed to load correlation heatmap.")
 
+# 3D Scatter: Glucose, BMI, Age
 st.header("3D Scatter: Glucose, BMI, Age")
-st.plotly_chart(fig_3d, use_container_width=True)
+fig_3d = visualization.create_3d_scatter(df)
+if fig_3d:
+    st.plotly_chart(fig_3d, use_container_width=True)
+else:
+    st.error("Failed to load 3D scatter plot.")
 
-# st.header("2D Scatter: Glucose vs BMI")
-# st.plotly_chart(fig_2d, use_container_width=True)
+# 2D Scatter: Glucose vs BMI
+st.header("2D Scatter: Glucose vs BMI")
+fig_2d = visualization.create_2d_scatter(df)
+if fig_2d:
+    st.plotly_chart(fig_2d, use_container_width=True)
+else:
+    st.error("Failed to load 2D scatter plot.")
 
+
+# Age-Wise Diabetes Prevalence
+st.header("Age-Wise Diabetes Prevalence")
+fig_trend = visualization.create_age_prevalence_line(df)
+if fig_trend:
+    st.plotly_chart(fig_trend, use_container_width=True)
+else:
+    st.error("Failed to load age prevalence line chart.")
+
+# Diabetes Prevalence by Pregnancies
+st.header("Diabetes Prevalence by Pregnancies")
+fig_preg = visualization.create_pregnancies_prevalence_bar(df)
+if fig_preg:
+    st.plotly_chart(fig_preg, use_container_width=True)
+else:
+    st.error("Failed to load pregnancies prevalence bar chart.")
+
+# Parallel Coordinates Plot
+st.header("Parallel Coordinates: Glucose, BMI, Age")
+fig_parallel = visualization.create_parallel_coordinates(df)
+if fig_parallel:
+    st.plotly_chart(fig_parallel, use_container_width=True)
+else:
+    st.error("Failed to load parallel coordinates plot.")
+
+# Interactive Scatter & Age Distribution
 st.header("Interactive Scatter & Age Distribution")
-st.plotly_chart(fig_interactive, use_container_width=True)
-
-
-# # --- 2D Scatter: Glucose vs BMI by Outcome ---
-# df_filtered = df.dropna(subset=['Glucose', 'BMI', 'Age', 'Outcome'])
-# df_filtered['Outcome_Color'] = df_filtered['Outcome'].map({0: 'green', 1: 'blue'})
-# fig_2d = px.scatter(df_filtered, x='Glucose', y='BMI',
-#                     color='Outcome_Color',
-#                     text='Outcome',
-#                     hover_data=['Pregnancies', 'Age'],
-#                     title='Glucose vs BMI by Outcome')
+fig_interactive = visualization.create_interactive_scatter(df)
+if fig_interactive:
+    st.plotly_chart(fig_interactive, use_container_width=True)
+else:
+    st.error("Failed to load interactive scatter plot.")
